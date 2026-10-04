@@ -1,10 +1,12 @@
 <?php
 
-
+use Livewire\Attributes\Validate;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
+
 new #[Title('はじめてのページ')] class extends Component {
+    #[Validate]
     public string $name = '岩手町';
 
     public int $count = 0;
