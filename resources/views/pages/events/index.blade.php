@@ -17,6 +17,7 @@ new #[Title('イベント一覧')] class extends Component {
     {
         return Event::query()
             ->with('user')
+            ->withMin('ticketTypes', 'price')
             ->orderBy('starts_at')
             ->get();
     }
@@ -47,6 +48,7 @@ new #[Title('イベント一覧')] class extends Component {
                 <flux:table.column>イベント</flux:table.column>
                 <flux:table.column>開催日時</flux:table.column>
                 <flux:table.column>会場</flux:table.column>
+                <flux:table.column>価格</flux:table.column>
                 <flux:table.column>主催</flux:table.column>
                 <flux:table.column></flux:table.column>
             </flux:table.columns>
@@ -61,6 +63,10 @@ new #[Title('イベント一覧')] class extends Component {
                             {{ $event->ends_at->isoFormat('HH:mm') }}
                         </flux:table.cell>
                         <flux:table.cell>{{ $event->venue }}</flux:table.cell>
+                        <flux:table.cell>
+                            @php($lowestPrice = $event->ticket_types_min_price)
+                            {{ $lowestPrice === null ? '—' : ($lowestPrice == 0 ? '無料' : number_format($lowestPrice).'円〜') }}
+                        </flux:table.cell>
                         <flux:table.cell>{{ $event->user->name }}</flux:table.cell>
                         <flux:table.cell>
                             @if ($event->isOwnedBy(auth()->user()))
