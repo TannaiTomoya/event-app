@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Event;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -65,4 +66,48 @@ test('valid event input is saved as the logged-in user\'s event', function () {
         'title' => '岩手山トレッキング',
         'venue' => '馬返し登山口',
     ]);
+});
+
+test('event description is limited to 2000 characters', function () {
+    Livewire::actingAs(User::factory()->create())
+        ->test('pages::events.create')
+        ->set('description', str_repeat('あ', 2001))
+        ->call('save')
+        ->assertHasErrors(['description' => 'max']);
+
+    expect(Event::count())->toBe(0);
+});
+
+test('event venue is limited to 100 characters', function () {
+    Livewire::actingAs(User::factory()->create())
+        ->test('pages::events.create')
+        ->set('venue', str_repeat('あ', 101))
+        ->call('save')
+        ->assertHasErrors(['venue' => 'max']);
+
+    expect(Event::count())->toBe(0);
+});
+
+test('event form rejects malformed dates', function () {
+    Livewire::actingAs(User::factory()->create())
+        ->test('pages::events.create')
+        ->set('title', '岩手山トレッキング')
+        ->set('description', '岩手山を歩くイベントです。')
+        ->set('venue', '馬返し登山口')
+        ->set('starts_at', 'not-a-date')
+        ->set('ends_at', 'also-not-a-date')
+        ->call('save')
+        ->assertHasErrors(['starts_at' => 'date', 'ends_at' => 'date']);
+
+    expect(Event::count())->toBe(0);
+});
+
+test('invalid input does not create an event', function () {
+    Livewire::actingAs(User::factory()->create())
+        ->test('pages::events.create')
+        ->call('save')
+        ->assertHasErrors()
+        ->assertNoRedirect();
+
+    expect(Event::count())->toBe(0);
 });
