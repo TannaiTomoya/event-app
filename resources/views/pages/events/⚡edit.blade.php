@@ -34,8 +34,7 @@ new #[Title('イベントを編集')] class extends Component {
 
     public function mount(Event $event): void
     {
-        // 自分が作ったイベントでなければ 403
-        abort_unless($event->isOwnedBy(auth()->user()), 403);
+        $this->authorize('update', $event);
 
         $this->event = $event;
         $this->title = $event->title;
@@ -47,7 +46,7 @@ new #[Title('イベントを編集')] class extends Component {
 
     public function save(): void
     {
-        abort_unless($this->event->isOwnedBy(auth()->user()), 403);
+        $this->authorize('update', $this->event);
 
         $this->event->update($this->validate());
 
@@ -98,9 +97,26 @@ new #[Title('イベントを編集')] class extends Component {
         unset($this->ticketTypes);
     }
 
+    public function duplicate(): void
+    {
+        $this->authorize('duplicate', $this->event);
+
+        $suffix = '（複製）';
+
+        $copy = $this->event->replicate();
+        $copy->title = mb_substr($this->event->title, 0, 100 - mb_strlen($suffix)).$suffix;
+        $copy->starts_at = $this->event->starts_at->copy()->addWeek();
+        $copy->ends_at = $this->event->ends_at->copy()->addWeek();
+        $copy->save();
+
+        session()->flash('status', 'イベントを複製しました。');
+
+        $this->redirectRoute('events.edit', $copy, navigate: true);
+    }
+
     public function delete(): void
     {
-        abort_unless($this->event->isOwnedBy(auth()->user()), 403);
+        $this->authorize('delete', $this->event);
 
         $this->event->delete();
 
@@ -114,6 +130,12 @@ new #[Title('イベントを編集')] class extends Component {
 <div class="mx-auto max-w-2xl space-y-6">
     <flux:heading size="xl">イベントを編集</flux:heading>
 
+    @if (session('status'))
+        <flux:callout variant="success" icon="check-circle">
+            <flux:callout.heading>{{ session('status') }}</flux:callout.heading>
+        </flux:callout>
+    @endif
+
     <form wire:submit="save" class="space-y-6">
         <flux:input wire:model="title" label="タイトル" />
         <flux:textarea wire:model="description" label="説明" rows="6" />
@@ -125,7 +147,10 @@ new #[Title('イベントを編集')] class extends Component {
         </div>
 
         <div class="flex justify-between">
-            <flux:button wire:click="delete" wire:confirm="このイベントを削除しますか？" variant="danger" icon="trash">削除</flux:button>
+            <div class="flex gap-3">
+                <flux:button wire:click="delete" wire:confirm="このイベントを削除しますか？" variant="danger" icon="trash">削除</flux:button>
+                <flux:button type="button" wire:click="duplicate" wire:confirm="保存していない変更は複製されません。複製しますか？" wire:loading.attr="disabled" wire:target="duplicate" variant="ghost" icon="document-duplicate">イベントを複製</flux:button>
+            </div>
             <div class="flex gap-3">
                 <flux:button :href="route('events.index')" variant="ghost" wire:navigate>キャンセル</flux:button>
                 <flux:button type="submit" variant="primary">更新する</flux:button>

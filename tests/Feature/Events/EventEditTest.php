@@ -2,6 +2,7 @@
 
 use App\Models\Event;
 use App\Models\User;
+use App\Policies\EventPolicy;
 use Livewire\Livewire;
 
 test('organizers can update their event and are redirected to the index with a flash message', function () {
@@ -146,4 +147,15 @@ test('the edit page of a nonexistent event returns 404', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('events.edit', ['event' => 999999]))
         ->assertNotFound();
+});
+
+test('only the event owner is allowed to update, delete or duplicate the event by policy', function () {
+    $event = Event::factory()->create();
+    $other = User::factory()->create();
+    $policy = new EventPolicy;
+
+    foreach (['update', 'delete', 'duplicate'] as $ability) {
+        expect($policy->{$ability}($event->user, $event))->toBeTrue()
+            ->and($policy->{$ability}($other, $event))->toBeFalse();
+    }
 });
