@@ -27,7 +27,7 @@ test('organizers can add a ticket type to their event', function () {
     ]);
 });
 
-test('other users cannot add ticket types to the event', function () {
+test('other users cannot open the edit page where ticket types are added', function () {
     $event = Event::factory()->create();
 
     Livewire::actingAs(User::factory()->create())
@@ -84,7 +84,7 @@ test('organizers can delete a ticket type of their event', function () {
     expect(TicketType::count())->toBe(0);
 });
 
-test('other users cannot delete ticket types', function () {
+test('other users cannot open the edit page where ticket types are deleted', function () {
     $ticketType = TicketType::factory()->create();
 
     Livewire::actingAs(User::factory()->create())
@@ -120,7 +120,7 @@ test('ticket type name over 50 characters is rejected', function () {
     expect(TicketType::count())->toBe(0);
 });
 
-test('a user who replaces the owner after the page is opened cannot add ticket types', function () {
+test('addTicketType is authorized by the policy even after the page is opened', function () {
     $event = Event::factory()->create();
 
     $component = Livewire::actingAs($event->user)
@@ -138,7 +138,7 @@ test('a user who replaces the owner after the page is opened cannot add ticket t
     expect(TicketType::count())->toBe(0);
 });
 
-test('a user who replaces the owner after the page is opened cannot delete ticket types', function () {
+test('deleteTicketType is authorized by the policy even after the page is opened', function () {
     $ticketType = TicketType::factory()->create();
 
     $component = Livewire::actingAs($ticketType->event->user)
@@ -161,4 +161,63 @@ test('only the event owner is allowed to create or delete ticket types by policy
         ->and($policy->create($other, $ticketType->event))->toBeFalse()
         ->and($policy->delete($owner, $ticketType))->toBeTrue()
         ->and($policy->delete($other, $ticketType))->toBeFalse();
+});
+
+test('ticket type values on the boundary are accepted', function (string $name, string $price, string $capacity) {
+    $event = Event::factory()->create();
+
+    Livewire::actingAs($event->user)
+        ->test('pages::events.edit', ['event' => $event])
+        ->set('ticketName', $name)
+        ->set('ticketPrice', $price)
+        ->set('ticketCapacity', $capacity)
+        ->call('addTicketType')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('ticket_types', [
+        'event_id' => $event->id,
+        'name' => $name,
+        'price' => (int) $price,
+        'capacity' => (int) $capacity,
+    ]);
+})->with([
+    'free ticket' => ['無料招待', '0', '10'],
+    'name of exactly 50 characters' => [str_repeat('あ', 50), '1000', '10'],
+    'capacity of one' => ['一般', '1000', '1'],
+]);
+
+test('ticket type values out of the rules are rejected', function (string $field, string $value, string $rule) {
+    $event = Event::factory()->create();
+
+    Livewire::actingAs($event->user)
+        ->test('pages::events.edit', ['event' => $event])
+        ->set('ticketName', '一般')
+        ->set('ticketPrice', '1000')
+        ->set('ticketCapacity', '10')
+        ->set($field, $value)
+        ->call('addTicketType')
+        ->assertHasErrors([$field => $rule]);
+
+    expect(TicketType::count())->toBe(0);
+})->with([
+    'negative price' => ['ticketPrice', '-1', 'min'],
+    'decimal price' => ['ticketPrice', '1.5', 'integer'],
+    'non-numeric price' => ['ticketPrice', 'abc', 'integer'],
+    'zero capacity' => ['ticketCapacity', '0', 'min'],
+    'decimal capacity' => ['ticketCapacity', '1.5', 'integer'],
+    'non-numeric capacity' => ['ticketCapacity', 'abc', 'integer'],
+]);
+
+test('ticket type validation messages are shown in Japanese', function () {
+    $event = Event::factory()->create();
+
+    Livewire::actingAs($event->user)
+        ->test('pages::events.edit', ['event' => $event])
+        ->set('ticketName', '123')
+        ->set('ticketPrice', '')
+        ->set('ticketCapacity', '0')
+        ->call('addTicketType')
+        ->assertSee('券種名には、文字を1文字以上含めてください。')
+        ->assertSee('価格を入力してください。')
+        ->assertSee('定員には、1以上の値を指定してください。');
 });
